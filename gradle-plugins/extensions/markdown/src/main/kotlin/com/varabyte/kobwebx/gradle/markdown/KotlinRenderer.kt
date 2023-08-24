@@ -2,6 +2,7 @@ package com.varabyte.kobwebx.gradle.markdown
 
 import com.varabyte.kobweb.common.collect.TypedMap
 import com.varabyte.kobweb.common.text.isSurrounded
+import com.varabyte.kobweb.gradle.core.util.Reporter
 import com.varabyte.kobweb.gradle.core.util.hasJsDependencyNamed
 import com.varabyte.kobweb.gradle.core.util.prefixQualifiedPackage
 import com.varabyte.kobwebx.gradle.markdown.ext.kobwebcall.KobwebCall
@@ -9,6 +10,11 @@ import com.varabyte.kobwebx.gradle.markdown.ext.kobwebcall.KobwebCallBlock
 import com.varabyte.kobwebx.gradle.markdown.ext.kobwebcall.KobwebCallVisitor
 import org.commonmark.ext.front.matter.YamlFrontMatterBlock
 import org.commonmark.ext.front.matter.YamlFrontMatterVisitor
+import org.commonmark.ext.gfm.tables.TableBlock
+import org.commonmark.ext.gfm.tables.TableBody
+import org.commonmark.ext.gfm.tables.TableCell
+import org.commonmark.ext.gfm.tables.TableHead
+import org.commonmark.ext.gfm.tables.TableRow
 import org.commonmark.node.AbstractVisitor
 import org.commonmark.node.BlockQuote
 import org.commonmark.node.BulletList
@@ -39,15 +45,14 @@ import org.gradle.api.Project
 import org.gradle.api.provider.Provider
 import java.util.*
 
-private fun String.yamlStringToKotlinString(): String {
-    val result = if (this.isSurrounded("\"")) {
-        this.removeSurrounding("\"")
+fun String.yamlStringToKotlinString(): String {
+    return if (this.isSurrounded("\"")) {
+        this.removeSurrounding("\"").unescapeQuotes()
     } else if (this.isSurrounded("'")) {
-        this.removeSurrounding("'")
+        this.removeSurrounding("'").unescapeTicks()
     } else {
         this
     }
-    return result.unescapeQuotes()
 }
 
 class KotlinRenderer(
@@ -57,10 +62,11 @@ class KotlinRenderer(
     private val handlers: MarkdownHandlers,
     private val pkg: String,
     private val funName: String,
+    private val reporter: Reporter,
 ) : Renderer {
     private val defaultRoot: String? = handlers.defaultRoot.get().takeIf { it.isNotBlank() }
     private var indentCount = 0
-    private val indent get() = "    ".repeat(indentCount)
+    private val indent get() = NodeScope(TypedMap()).indent(indentCount)
 
     // If true, we have access to the `MarkdownContext` class and CompositionLocal
     private val dependsOnMarkdownArtifact = project.hasJsDependencyNamed("kobwebx-markdown")
@@ -210,9 +216,10 @@ class KotlinRenderer(
         }
 
         private fun <N : Node> doVisit(node: N, composableCall: Provider<NodeScope.(N) -> String>) {
-            val scope = NodeScope(data)
+            val scope = NodeScope(data, indentCount)
             composableCall.get().invoke(scope, node).takeIf { it.isNotBlank() }?.let { code ->
-                doVisit(node, code, scope)
+                // Remove leading indentation (if any) because we add it ourselves
+                doVisit(node, code.trimStart(), scope)
             }
         }
 
@@ -347,8 +354,44 @@ class KotlinRenderer(
         }
 
         override fun visit(customNode: CustomNode) {
-            if (customNode is KobwebCall) {
-                output.appendLine("$indent${customNode.toFqn(project)}")
+            when (customNode) {
+                is KobwebCall -> {
+                    output.appendLine("$indent${customNode.toFqn(project)}")
+                }
+
+                is TableHead -> visit(customNode)
+                is TableBody -> visit(customNode)
+                is TableRow -> visit(customNode)
+                is TableCell -> visit(customNode)
+
+                else -> {
+                    val unhandledNodeName = customNode::class.simpleName!!
+                    reporter.warn("Unhandled Markdown custom node: $unhandledNodeName. Consider reporting this at: https://github.com/varabyte/kobweb/issues/new?labels=bug&template=bug_report.md&title=Unhandled%20Markdown%20node%20%22$unhandledNodeName%22")
+                }
+            }
+        }
+
+        private fun visit(table: TableBlock) {
+            doVisit(table, handlers.table)
+        }
+
+        private fun visit(tableHead: TableHead) {
+            doVisit(tableHead, handlers.thead)
+        }
+
+        private fun visit(tableBody: TableBody) {
+            doVisit(tableBody, handlers.tbody)
+        }
+
+        private fun visit(tableRow: TableRow) {
+            doVisit(tableRow, handlers.tr)
+        }
+
+        private fun visit(tableCell: TableCell) {
+            if (tableCell.isHeader) {
+                doVisit(tableCell, handlers.th)
+            } else {
+                doVisit(tableCell, handlers.td)
             }
         }
 
@@ -373,18 +416,30 @@ class KotlinRenderer(
         }
 
         override fun visit(customBlock: CustomBlock) {
-            if (customBlock is KobwebCallBlock) {
-                val visitor = KobwebCallVisitor()
-                customBlock.accept(visitor)
-                visitor.call?.let { call ->
-                    visit(call)
-                    visitor.childrenNodes?.let { children ->
-                        ++indentCount
-                        children.forEach { node -> node.accept(this) }
-                        --indentCount
-                        output.appendLine("$indent}")
+            when (customBlock) {
+                is KobwebCallBlock -> {
+                    val visitor = KobwebCallVisitor()
+                    customBlock.accept(visitor)
+                    visitor.call?.let { call ->
+                        visit(call)
+                        visitor.childrenNodes?.let { children ->
+                            ++indentCount
+                            children.forEach { node -> node.accept(this) }
+                            --indentCount
+                            output.appendLine("$indent}")
+                        }
                     }
+                }
 
+                is YamlFrontMatterBlock -> {
+                    // No-op. We don't need to do anything here because we already handled parsing front matter earlier.
+                }
+
+                is TableBlock -> visit(customBlock)
+
+                else -> {
+                    val unhandledBlockName = customBlock::class.simpleName!!
+                    reporter.warn("Unhandled Markdown custom block: $unhandledBlockName. Consider reporting this at: https://github.com/varabyte/kobweb/issues/new?labels=bug&template=bug_report.md&title=Unhandled%20Markdown%20block%20%22$unhandledBlockName%22")
                 }
             }
         }

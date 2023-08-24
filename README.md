@@ -1,4 +1,4 @@
-![version: 0.13.9](https://img.shields.io/badge/kobweb-0.13.9-blue)
+![version: 0.13.11](https://img.shields.io/badge/kobweb-0.13.11-blue)
 ![version: 0.9.13](https://img.shields.io/badge/kobweb_cli-0.9.13-blue)
 <br>
 ![kotlin: 1.8.20](https://img.shields.io/badge/kotlin-1.8.20-blue?logo=kotlin)
@@ -22,15 +22,13 @@ and [Chakra UI](https://chakra-ui.com).
 fun HomePage() {
   Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
     Row(Modifier.align(Alignment.End)) {
-      var colorMode by rememberColorMode()
+      var colorMode by ColorMode.currentState
       Button(
-        onClick = { colorMode = colorMode.opposite() },
+        onClick = { colorMode = colorMode.opposite },
         Modifier.borderRadius(50.percent).padding(0.px)
       ) {
-        Box(Modifier.margin(7.px)) {
-          // Includes support for Font Awesome icons
-          if (colorMode.isLight()) FaSun() else FaMoon()
-        }
+        // Includes support for Font Awesome icons
+        if (colorMode.isLight) FaSun() else FaMoon()
       }
     }
     H1 {
@@ -594,10 +592,9 @@ And you could use that stylesheet to style the following document:
 
 ```html
 <body>
-  <!-- Div gets background-color from "body" and foreground color from "#title" -->
-  <div id="title">
-      Yellow on green
-  </div>
+  <!-- Title gets background-color from "body" and foreground color from "#title" -->
+  <div id="title">Yellow on black</div>
+  Magenta on black
 </body>
 ```
 
@@ -605,20 +602,24 @@ There's no hard and fast rule, but in general, when writing HTML / CSS by hand, 
 inline styles as it better maintains a separation of concerns. That is, the HTML should represent the content of your
 site, while the CSS controls the look and feel.
 
-However! We're not writing HTML / CSS by hand. We're using Compose HTML! So the distinctions discussed up until now
-are less important here.
+However! We're not writing HTML / CSS by hand. We're using Compose HTML! Should we even care about this in Kotlin?
 
-That said, there are times when you have to use stylesheets, because without them you can't define styles for advanced
-behaviors (particularly [pseudo classes](https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes),
-[pseudo elements](https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-elements), and
-[media queries](https://developer.mozilla.org/en-US/docs/Web/CSS/Media_Queries/Using_media_queries), the discussion of
-which are outside the scope of this README). For example, you can't override the color of visited links without using a
-stylesheet approach. So it's worth realizing there are occasional differences.
+As it turns out, there are times when you have to use stylesheets, because without them, you can't define styles for
+advanced behaviors
+(particularly [pseudo classes](https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes), [pseudo elements](https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-elements),
+and [media queries](https://developer.mozilla.org/en-US/docs/Web/CSS/Media_Queries/Using_media_queries)). For example,
+you can't override the color of visited links without using a stylesheet approach. So it's worth realizing there are
+fundamental differences.
+
+Finally, it can also be much easier debugging your page with browser tools when you lean on stylesheets over inline styles, as it
+makes your DOM tree easier to read when your elements are simple (e.g. `<div class="title">`
+vs. `<div style="color:yellow; background-color:black; font-size: 24px; ...">`).
 
 ---
 
-In general, when you pass styles defined on the fly into a composable widget in Silk, those will result in inline
-styles, whereas if you use a `ComponentStyle` to define the styles, those will get embedded into the site's stylesheet:
+We'll be introducing and discussing modifiers and component styles in more detail shortly. But in general, when you pass
+modifiers directly into a composable widget in Silk, those will result in inline styles, whereas if you use a component
+style to define your styles, those will get embedded into the site's stylesheet:
 
 ```kotlin
 // Uses inline styles
@@ -631,11 +632,13 @@ val BoxStyle by ComponentStyle {
 Box(BoxStyle.toModifier()) { /* ... */ }
 ```
 
-We'll talk more about these approaches in the following sections.
+As a beginner, or even as an advanced user when prototyping, feel free to use inline modifiers as much as you can,
+pivoting to component styles if you find yourself needing to use pseudo classes, pseudo elements, or media queries. It
+is fairly easy to migrate inline styles over to stylesheets in Kobweb.
 
-One last note: debugging your page with browser tools may be easier if you lean on stylesheets over inline styles,
-because it makes your DOM tree easier to look through without all that extra noise. As a result, I tend to use
-`ComponentStyle` quite often.
+In my own projects, I tend to use inline styles for really simple layout elements (e.g. `Row(Modifier.fillMaxWidth())`)
+and component styles for complex and/or re-usable widgets. It actually becomes a nice organizational convention to have
+all your styles grouped together in one place above the widget itself.
 
 ### Modifier
 
@@ -730,7 +733,7 @@ With Silk, you can define a style like so, using the `base` block:
 ```kotlin
 val CustomStyle by ComponentStyle {
     base {
-        Modifier.backgroud(Colors.Red)
+        Modifier.background(Colors.Red)
     }
 }
 ```
@@ -742,9 +745,22 @@ which takes a `Modifier` parameter:
 // Approach #1 (uses inline styles)
 Box(Modifier.backgroundColor(Colors.Red)) { /* ... */ }
 
-// Appraoch #2 (uses stylesheets)
-Box(CustomStyle.toModifier()) { /* ... */}
+// Approach #2 (uses stylesheets)
+Box(CustomStyle.toModifier()) { /* ... */ }
 ```
+
+#### `ComponentStyle.base`
+
+You can simplify the syntax of basic component styles a bit further with the `ComponentStyle.base` declaration:
+
+```kotlin
+val CustomStyle by ComponentStyle.base {
+    Modifier.background(Colors.Red)
+}
+```
+
+Just be aware you may have to break this out again if you find yourself needing to
+support [additional states ▼](#additional-states).
 
 #### ComponentStyle name
 
@@ -762,7 +778,7 @@ the `by` keyword):
 ```kotlin
 val CustomStyle = ComponentStyle("my-custom-name") {
     base {
-        Modifier.backgroud(Colors.Red)
+        Modifier.background(Colors.Red)
     }
 }
 ```
@@ -856,18 +872,18 @@ When you define a `ComponentStyle`, an optional field is available for you to us
 ```kotlin
 val CustomStyle by ComponentStyle {
     base {
-        Modifier.color(if (colorMode.isLight()) Colors.Red else Colors.Pink)
+        Modifier.color(if (colorMode.isLight) Colors.Red else Colors.Pink)
     }
 }
 ```
 
-Note that Silk provides a `SilkTheme` object you can reference in styles. For example, if you want to set your element's
-color to match the color that we use for links, you can reference the `SilkTheme.palettes[colorMode]` object to do so:
+Silk defines a bunch of light and dark colors for all of its widgets, and if you'd like to re-use any of them in your
+own widget, you can query them using `colorMode.toSilkPalette()`:
 
 ```kotlin
 val CustomStyle by ComponentStyle {
     base {
-        Modifier.color(SilkTheme.palettes[colorMode].link.default)
+        Modifier.color(colorMode.toSilkPalette().link.default)
     }
 }
 ```
@@ -929,6 +945,17 @@ outline styling.
 
 ***Note:** Using a variant that was created from a different style will have no effect. In other words,
 `LinkStyle.toModifier(OutlineButtonVariant)` will ignore the button variant in that case.*
+
+##### `ComponentVariant.addVariantBase`
+
+Like `ComponentStyle.base`, variants that don't need to support additional states can use `addVariantBase` instead to
+slightly simplify their declaration:
+
+```kotlin
+val HighlightedCustomVariant by CustomStyle.addVariantBase {
+    Modifier.backgroundColor(Colors.Green)
+}
+```
 
 ##### ComponentVariantName
 
@@ -998,7 +1025,7 @@ div {
 }
 ```
 
-Kobweb lets you define your keyframes in code by using the `by keyframes` pattern:
+Kobweb lets you define your keyframes in code by using the `by Keyframes` pattern:
 
 ```kotlin
 val ShiftRight by Keyframes {
@@ -1058,10 +1085,10 @@ The `ref { ... }` method can actually take one or more optional keys of any valu
 subsequent recomposition, the callback will be rerun:
 
 ```kotlin
-val colorMode by rememberColorMode()
+val colorMode by ColorMode.currentState
 Box(
     // Callback will get triggered each time the color mode changes
-    ref = ref(colorMode) { element -> /* ... */}
+    ref = ref(colorMode) { element -> /* ... */ }
 )
 ```
 
@@ -1098,7 +1125,7 @@ val isFeature2Enabled: Boolean = /* ... */
 Box(
     ref = refScope {
         ref(isFeature1Enabled) { element -> /* ... */ }
-        dispoasbleRef(isFeature2Enabled) { element -> /* ... */; onDispose { /* ... */ } }
+        disposableRef(isFeature2Enabled) { element -> /* ... */; onDispose { /* ... */ } }
     }
 )
 ```
@@ -1197,7 +1224,7 @@ val DialogStyle300 by ComponentStyle {
   base { Modifier.setVariable(dialogWidth, 300.px).width(dialogWidth.value(400.px)) }
 }
 ```
-***NOTE:** In the above example, we have one line where set a variable and query it in the same style, which we did
+***NOTE:** In the above example, we have one line where we set a variable and query it in the same style, which we did
 purely for demonstration purposes. In practice, you would probably never do this -- the variable should have been set
 separately earlier.*
 
@@ -1278,7 +1305,7 @@ fun RainbowBackground() {
     Box(ScreenStyle.toModifier(), ref = ref { screenElement = it }) {
         Button(onClick = {
             // We have the backing HTML element, so use setProperty to set the variable value directly
-            screenElement!!.style.setProperty("--bgColor", roygbiv.random().toString())
+            screenElement!!.setVariable(bgColor, roygbiv.random())
         }) {
             Text("Click me")
         }
@@ -1341,7 +1368,7 @@ fun RainbowBackground() {
 ```
 
 Even though you should rarely need CSS variables, there may be occasions where they can be a useful tool in your
-toolbox. The above examples were artificial examples used as a way to show off CSS variables in relatively isolated
+toolbox. The above examples were artificial scenarios used as a way to show off CSS variables in relatively isolated
 environments. But here are some situations that might benefit from CSS variables:
 
 * You have a site which allows users to choose from a list of several themes (e.g. primary and secondary colors). It
@@ -1440,7 +1467,7 @@ around.
 First, as a sibling to pages, create a folder called **components**. Within it, add:
 
 * **layouts** - High-level composables that provide entire page layouts. Most (all?) of your `@Page` pages will start by
-  calling a page layout function first. You may only have a single layout for your entire site.
+  calling a page layout function first. It's possible that you will only need a single layout for your entire site.
 * **sections** - Medium-level composables that represent compound areas inside your pages, organizing a collection of
   many children composables. If you have multiple layouts, it's likely sections would be shared across them. For
   example, nav headers and footers are great candidates for this subfolder.
@@ -1490,7 +1517,7 @@ Here's an example application composable override that I use in one of my own pr
 @Composable
 fun MyApp(content: @Composable () -> Unit) {
     SilkApp {
-        val colorMode = getColorMode()
+      val colorMode = ColorMode.current
         LaunchedEffect(colorMode) { // Relaunched every time the color mode changes
             localStorage.setItem(COLOR_MODE_KEY, colorMode.name)
         }
@@ -1503,7 +1530,7 @@ fun MyApp(content: @Composable () -> Unit) {
 }
 ```
 
-You can only define *at most* a single `@App` on your site, or else the Kobweb Application plugin will complain at build
+You can define *at most* a single `@App` on your site, or else the Kobweb Application plugin will complain at build
 time.
 
 ### Static layout vs. Full stack sites
@@ -1617,7 +1644,7 @@ and look the same as the `jsMain` folder):
 
 You can define and annotate methods which will generate server endpoints you can interact with. To add one:
 
-1. Define your method (optionally `suspend`able) in a file somewhere under the `api` package your `jvmMain` source
+1. Define your method (optionally `suspend`able) in a file somewhere under the `api` package in your `jvmMain` source
    directory.
 1. The method should take exactly one argument, an `ApiContext`.
 1. Annotate it with `@Api`
@@ -1666,19 +1693,19 @@ directly.
 
 #### Define API streams
 
-Kobweb servers also support persistent connections via streams. Streams are essentially a named channel that allow the
-client and the server to stay in touch at which point either can send messages to the other at any time. This is
+Kobweb servers also support persistent connections via streams. Streams are essentially named channels that maintain
+continuous contact between the client and the server, allowing either to send messages to the other at any time. This is
 especially useful if you want your server to be able to communicate updates to your client without needing to poll.
 
-Additionally, multiple clients can connect to the same stream. In this case, the server can choose not just to send a
-message back to your client, but it can broadcast messages to all users (or a filtered subset of users) on the same
+Additionally, multiple clients can connect to the same stream. In this case, the server can choose to not only send a
+message back to your client, but also to broadcast messages to all users (or a filtered subset of users) on the same
 stream. You could use this, for example, to implement a chat server with rooms.
 
 Like API routes, API streams must be defined under the `api` package in your `jvmMain` source directory. By default, the
 name of the stream will be derived from the file name and path that it's declared in.
 
 Unlike API routes, API streams are defined as properties, not methods. This is because API streams need to be a bit more
-flexible than routes since streams consistent of multiple separate events: client connection, client messages, and
+flexible than routes, since streams consist of multiple distinct events: client connection, client messages, and
 client disconnection.
 
 Streams do not have to be annotated. The Kobweb Application plugin can automatically detect them.
@@ -1777,7 +1804,7 @@ val echoStream = rememberApiStream("echo") { text -> console.log("Echoed: $text"
 ```
 
 In practice, your API streams will probably be a bit more involved than the echo example, but it's nice to know that you
-can handle some cases only needing a one-liner on the server and another one on the client to create a persistent
+can handle some cases only needing a one-liner on the server and another on the client to create a persistent
 client-server connection!
 
 #### API routes vs. API streams
@@ -2242,6 +2269,63 @@ Some notes...
 
 For a simple site, the above workflow should take about 2 minutes to run.
 
+## Arithmetic for `StyleVariable`s using `calc`
+
+`StyleVariable`s work in a subtle way that is usually fine until it isn't -- which is often when you try to interact
+with their values instead of just passing them around.
+
+For context, you can use a style variable interchangeably with the value it represents. For example, code like this
+works because `MyOpacityVar.value()` returns something with type `Number`:
+
+```kotlin
+val MyOpacityVar by StyleVariable<Number>()
+
+// later...
+Modifier.opacity(MyOpacityVar.value())
+```
+
+This generates the following CSS:
+```css
+opacity: var(--my-opacity);
+```
+
+How does something of type `Number` generate output like `var(--my-opacity)`?
+
+This is accomplished through the use of Kotlin/JS's `unsafeCast`, where you can tell the compiler to treat a value as a
+different type than it actually is. In this case, `MyOpacityVar.value()` returns some object which the Kotlin compiler
+*treats* like a `Number` for compilation purposes, but it is really some class instance whose `toString()` evaluates to
+`var(--my-opacity)`.
+
+Therefore, `Modifier.opacity(MyOpacityVar.value())` works seemingly like magic! However, if you try to do some
+arithmetic, like `MyOpacityVar.value().toDouble() * 0.5`, the compiler might be happy, but things will break silently at
+runtime, when the JS engine is asked to do math with something that's not really a number.
+
+In CSS, doing math with variables is accomplished by using `calc` blocks , so Kobweb offers its own `calc` method to
+mirror this. When dealing with raw numerical values, you must wrap them in `num` so we can escape the raw type system
+which was causing runtime confusion above:
+
+```kotlin
+calc { num(MyOpacityVar.value()) * num(0.5) }
+// Output: "calc(var(--my-opacity, 1) * 0.5)"
+```
+
+At this point, you can write code like this:
+
+```kotlin
+Modifier.opacity(calc { num(MyOpacityVar.value()) * num(0.5) })
+```
+
+It's a little hard to remember to wrap raw values in `num`, but you will get compile errors if you do it wrong.
+
+Working with variables representing size values inside a calc block doesn't require wrapping methods and feels much more
+natural:
+
+```kotlin
+val MyFontSizeVar by StyleVariable<CSSLengthValue>()
+calc { MyFontSizeVar.value() + 1.cssRem }
+// Output: "calc(var(--my-font-size) + 1rem)"
+```
+
 ## Kobweb Server Plugins
 
 Many users who create a full stack application generally expect to completely own both the client- and server-side code.
@@ -2340,7 +2424,7 @@ Upon the next Kobweb server run (e.g. via `kobweb run`), if you check the logs, 
 For convenience, the Kobweb Gradle Application plugin provides a way to notify it about your JAR task, and it will build
 and copy it over for you automatically.
 
-In your Kobweb's build script, include the following `notify...` line:
+In your Kobweb project's build script, include the following `notify...` line:
 
 ```kotlin
 // site/build.gradle.kts
@@ -2578,7 +2662,7 @@ So, should you use Kobweb at this point? If you are...
     * **Worth a shot!** I think if you evaluate Kobweb at this point, you'll find a lot to like. You can get in touch
       with us at our Discord if you try it and have questions or run into missing features.
 * someone who already has an existing project in progress and wants to integrate Kobweb into it:
-    * **Maybe not?** Depending how much work you've done, it may not be a trivial refactor. You can review
+    * **Maybe not?** Depending on how much work you've done, it may not be a trivial refactor. You can review
       [this earlier section ▲](#adding-kobweb-to-an-existing-project) if you want to try anyway.
 * a company:
     * **Probably not?** I'm assuming a company is more risk-averse even to Compose HTML, which Kobweb is

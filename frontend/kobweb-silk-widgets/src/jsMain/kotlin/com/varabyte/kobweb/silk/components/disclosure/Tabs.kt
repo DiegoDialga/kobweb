@@ -11,7 +11,6 @@ import com.varabyte.kobweb.compose.foundation.layout.Row
 import com.varabyte.kobweb.compose.ui.Alignment
 import com.varabyte.kobweb.compose.ui.Modifier
 import com.varabyte.kobweb.compose.ui.modifiers.*
-import com.varabyte.kobweb.compose.ui.styleModifier
 import com.varabyte.kobweb.compose.ui.thenIf
 import com.varabyte.kobweb.silk.components.style.ComponentStyle
 import com.varabyte.kobweb.silk.components.style.ComponentVariant
@@ -22,7 +21,7 @@ import com.varabyte.kobweb.silk.components.style.common.ariaDisabled
 import com.varabyte.kobweb.silk.components.style.hover
 import com.varabyte.kobweb.silk.components.style.not
 import com.varabyte.kobweb.silk.components.style.toModifier
-import com.varabyte.kobweb.silk.theme.colors.getColorMode
+import com.varabyte.kobweb.silk.theme.colors.ColorMode
 import com.varabyte.kobweb.silk.theme.toSilkPalette
 import org.jetbrains.compose.web.css.*
 import org.jetbrains.compose.web.dom.Text
@@ -34,15 +33,15 @@ val TabBackgroundColorVar by StyleVariable<CSSColorValue>(prefix = "silk")
 val TabDisabledBackgroundColorVar by StyleVariable<CSSColorValue>(prefix = "silk")
 val TabHoverBackgroundColorVar by StyleVariable<CSSColorValue>(prefix = "silk")
 val TabPressedBackgroundColorVar by StyleVariable<CSSColorValue>(prefix = "silk")
-val TabBorderThickness by StyleVariable<CSSLengthValue>(2.px, prefix = "silk")
+val TabBorderThicknessVar by StyleVariable<CSSLengthValue>(prefix = "silk", defaultFallback = 2.px)
 
-val TabsStyle by ComponentStyle {}
-val TabsTabRowStyle by ComponentStyle.base {
+val TabsStyle by ComponentStyle(prefix = "silk") {}
+val TabsTabRowStyle by ComponentStyle.base(prefix = "silk") {
     Modifier
         .fillMaxWidth()
-        .borderBottom(TabBorderThickness.value(), LineStyle.Solid, TabBorderColorVar.value())
+        .borderBottom(TabBorderThicknessVar.value(), LineStyle.Solid, TabBorderColorVar.value())
 }
-val TabsTabStyle by ComponentStyle(extraModifiers = { Modifier.tabIndex(0) }) {
+val TabsTabStyle by ComponentStyle(prefix = "silk", extraModifiers = { Modifier.tabIndex(0) }) {
     base {
         Modifier
             .cursor(Cursor.Pointer)
@@ -51,10 +50,8 @@ val TabsTabStyle by ComponentStyle(extraModifiers = { Modifier.tabIndex(0) }) {
             .color(TabColorVar.value())
             .userSelect(UserSelect.None)
             .padding(0.5.cssRem)
-            .styleModifier {
-                property("margin-bottom", "calc(-1 * ${TabBorderThickness.value()})")
-            }
-            .borderBottom(TabBorderThickness.value(), LineStyle.Solid, TabBorderColorVar.value())
+            .margin(bottom = calc { -TabBorderThicknessVar.value() })
+            .borderBottom(TabBorderThicknessVar.value(), LineStyle.Solid, TabBorderColorVar.value())
     }
 
     ariaDisabled {
@@ -70,9 +67,13 @@ val TabsTabStyle by ComponentStyle(extraModifiers = { Modifier.tabIndex(0) }) {
     }
 }
 
-val TabsPanelStyle by ComponentStyle.base {
+val TabsPanelStyle by ComponentStyle.base(prefix = "silk") {
     Modifier.padding(1.cssRem).fillMaxWidth().flexGrow(1).overflowY(Overflow.Auto)
 }
+
+@DslMarker
+@Target(AnnotationTarget.CLASS, AnnotationTarget.TYPEALIAS, AnnotationTarget.TYPE)
+annotation class TabsScopeMarker
 
 internal data class TabData(
     val modifier: Modifier = Modifier,
@@ -91,6 +92,7 @@ internal data class TabPanelData(
     val panel: PanelData
 )
 
+@TabsScopeMarker
 class TabPanelScope {
     internal var tab: TabData? = null
     internal var panel: PanelData? = null
@@ -127,6 +129,7 @@ fun TabPanelScope.Tab(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+@TabsScopeMarker
 class TabsScope {
     private val _tabPanels = mutableListOf<TabPanelData>()
     internal val tabPanels: List<TabPanelData> = _tabPanels
@@ -159,7 +162,7 @@ fun TabsScope.TabPanel(
     panelModifier: Modifier = Modifier,
     enabled: Boolean = true,
     isDefault: Boolean = false,
-    content: @Composable BoxScope.() -> Unit
+    content: @TabsScopeMarker @Composable BoxScope.() -> Unit
 ) {
     TabPanel(enabled, isDefault) {
         Tab(tabText, tabModifier)
@@ -264,7 +267,7 @@ fun Tabs(
 
     Column(TabsStyle.toModifier(variant).then(modifier), ref = ref) {
         Row(TabsTabRowStyle.toModifier()) {
-            val tabPalette = getColorMode().toSilkPalette().tab
+            val tabPalette = ColorMode.current.toSilkPalette().tab
             tabPanels.forEachIndexed { i, tabPanel ->
                 val isActive = (i == selectedTabIndex)
 

@@ -44,9 +44,16 @@ private const val SILK = "com.varabyte.kobweb.silk.components"
  *
  * @param data A simple map that is created once per file and can be used by components however they want to.
  */
-class NodeScope(val data: TypedMap) {
+class NodeScope(val data: TypedMap, private val indentCountBase: Int = 0) {
     /** If set, will cause the Markdown visit to visit these nodes instead of the node's original children. */
     var childrenOverride: List<Node>? = null
+
+    /**
+     * Convenience method for adding indents in front of your lines of code.
+     *
+     * The indent applied here will be consistent with the indent used by the Markdown -> Kotlin renderer.
+     */
+    fun indent(indentCount: Int) = "    ".repeat(indentCountBase + indentCount)
 }
 
 /**
@@ -272,8 +279,27 @@ abstract class MarkdownHandlers @Inject constructor(project: Project) {
         thead.convention { "$JB_DOM.Thead" }
         tbody.convention { "$JB_DOM.Tbody" }
         tr.convention { "$JB_DOM.Tr" }
-        td.convention { "$JB_DOM.Td" }
-        th.convention { "$JB_DOM.Th" }
+
+        // Convert a map of CSS style properties to an `style { ... }` block
+        fun Map<String, String>.toStylesBlock(): String {
+            val styleMap = this.takeIf { it.isNotEmpty() } ?: return ""
+            return buildString {
+                append("style {")
+                append(styleMap.map { (key, value) -> "property(\"$key\", \"$value\")" }.joinToString(";"))
+                append("}")
+            }
+        }
+        // Create relevant `(attrs = { ... })` call parameters for a table cell
+        fun TableCell.toCallParams(): String {
+            val alignment = alignment ?: return ""
+
+            val properties = mutableMapOf<String, String>()
+            properties["text-align"] = alignment.name.lowercase()
+            return "(attrs = { ${properties.toStylesBlock()} })"
+        }
+
+        td.convention { cell -> "$JB_DOM.Td${cell.toCallParams()}" }
+        th.convention { cell -> "$JB_DOM.Th${cell.toCallParams()}" }
 
         fun String.stripTagBrackets() =
             this.removePrefix("</").removePrefix("<").removeSuffix("/>").removeSuffix(">")
@@ -305,8 +331,8 @@ abstract class MarkdownHandlers @Inject constructor(project: Project) {
         }
 
         html.set { htmlBlock ->
-            fun renderNode(el: Element, indent: Int, sb: StringBuilder) {
-                sb.append("$KOBWEB_DOM.GenericTag(\"${el.tagName()}\"")
+            fun renderNode(el: Element, indentCount: Int, sb: StringBuilder) {
+                sb.append("${indent(indentCount)}$KOBWEB_DOM.GenericTag(\"${el.tagName()}\"")
 
                 if (el.attributesSize() > 0) {
                     sb.append(", ")
@@ -319,20 +345,21 @@ abstract class MarkdownHandlers @Inject constructor(project: Project) {
                     sb.append('"')
                 }
 
-                el.textNodes()
-
                 if (el.childNodeSize() > 0) {
-                    sb.append(") { ")
+                    sb.appendLine(") {")
                     el.childNodes().forEach { child ->
                         if (child is TextNode) {
                             if (child.text().isNotBlank()) {
-                                sb.appendLine(text.get().invoke(this, Text(child.text().trim())))
+                                sb.appendLine(indent(indentCount + 1) + text.get().invoke(this, Text(child.text().trim())))
                             }
                         } else if (child is Element) {
-                            renderNode(child, indent + 1, sb)
+                            renderNode(child, indentCount + 1, sb)
+                            if (!sb.endsWith("\n")) {
+                                sb.appendLine()
+                            }
                         }
                     }
-                    sb.append(" }")
+                    sb.appendLine(indent(indentCount) + "}")
                 } else {
                     sb.append(')')
                 }
@@ -343,7 +370,7 @@ abstract class MarkdownHandlers @Inject constructor(project: Project) {
             val body = doc.body()
             // Children size can be 0 (if input text was a <!-- comment -->) or 1, if we have a single root element
             check(body.childrenSize() <= 1) { "Unexpected html block in Markdown." }
-            doc.body().children().first()?.let { root -> renderNode(root, indent = 0, sb) }
+            doc.body().children().first()?.let { root -> renderNode(root, indentCount = 0, sb) }
 
             sb.toString()
         }

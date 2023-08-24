@@ -15,7 +15,6 @@ import com.varabyte.kobweb.silk.init.InitSilk
 import com.varabyte.kobweb.silk.init.InitSilkContext
 import com.varabyte.kobweb.silk.init.registerBaseStyle
 import com.varabyte.kobweb.silk.theme.colors.ColorMode
-import com.varabyte.kobweb.silk.theme.colors.getColorMode
 import kotlinx.browser.localStorage
 import org.jetbrains.compose.web.css.*
 
@@ -45,6 +44,14 @@ fun registerGlobalStyles(ctx: InitSilkContext) = ctx.stylesheet.apply {
             .textAlign(TextAlign.Left)
     }
 
+    registerBaseStyle("table, th, td") {
+        Modifier.border(1.px, LineStyle.Solid, Colors.LightGray)
+    }
+
+    registerBaseStyle("table") {
+        Modifier.borderCollapse(BorderCollapse.Collapse)
+    }
+
     registerBaseStyle("#md-inline-demo") {
         Modifier.color(Colors.OrangeRed)
     }
@@ -54,7 +61,7 @@ fun registerGlobalStyles(ctx: InitSilkContext) = ctx.stylesheet.apply {
 @Composable
 fun MyApp(content: @Composable () -> Unit) {
     SilkApp {
-        val colorMode = getColorMode()
+        val colorMode = ColorMode.current
         LaunchedEffect(colorMode) {
             localStorage.setItem(COLOR_MODE_KEY, colorMode.name)
         }

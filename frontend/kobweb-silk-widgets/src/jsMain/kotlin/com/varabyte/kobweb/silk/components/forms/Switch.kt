@@ -5,7 +5,6 @@ package com.varabyte.kobweb.silk.components.forms
 
 import androidx.compose.runtime.*
 import com.varabyte.kobweb.compose.css.*
-import com.varabyte.kobweb.compose.css.StyleVariable
 import com.varabyte.kobweb.compose.dom.ElementRefScope
 import com.varabyte.kobweb.compose.foundation.layout.Box
 import com.varabyte.kobweb.compose.ui.Alignment
@@ -21,15 +20,15 @@ import com.varabyte.kobweb.silk.components.style.common.ariaDisabled
 import com.varabyte.kobweb.silk.components.style.hover
 import com.varabyte.kobweb.silk.components.style.not
 import com.varabyte.kobweb.silk.components.style.toModifier
+import com.varabyte.kobweb.silk.theme.colors.ColorMode
 import com.varabyte.kobweb.silk.theme.colors.ColorScheme
 import com.varabyte.kobweb.silk.theme.colors.SilkPalette
-import com.varabyte.kobweb.silk.theme.colors.getColorMode
 import com.varabyte.kobweb.silk.theme.toSilkPalette
 import org.jetbrains.compose.web.css.*
 import org.w3c.dom.HTMLElement
 
 // 9999px forces a pill shape. 0px causes a rectangular shape.
-val SwitchBorderRadiusVar by StyleVariable<CSSLengthValue>(9999.px, prefix = "silk")
+val SwitchBorderRadiusVar by StyleVariable<CSSLengthValue>(prefix = "silk", defaultFallback = 9999.px)
 
 val SwitchTrackWidthVar by StyleVariable<CSSLengthValue>(prefix = "silk")
 val SwitchTrackHeightVar by StyleVariable<CSSLengthValue>(prefix = "silk")
@@ -39,8 +38,7 @@ val SwitchTrackBackgroundColorVar by StyleVariable<CSSColorValue>(prefix = "silk
 val SwitchThumbOffsetVar by StyleVariable<CSSLengthOrPercentageValue>(prefix = "silk") // Should be less than switch height
 val SwitchThumbColorVar by StyleVariable<CSSColorValue>(prefix = "silk") // Should be less than switch height
 
-val SwitchStyle by ComponentStyle(prefix = "silk") {
-}
+val SwitchStyle by ComponentStyle(prefix = "silk") {}
 
 val SwitchTrackStyle by ComponentStyle(prefix = "silk", extraModifiers = Modifier.tabIndex(0)) {
     base {
@@ -70,25 +68,25 @@ val SwitchThumbStyle by ComponentStyle.base(prefix = "silk") {
 interface SwitchSize {
     val width: CSSLengthValue
     val height: CSSLengthValue
-    val padding: CSSLengthValue get() = 3.px
+    val padding: CSSLengthValue get() = 0.188.cssRem
 
     object SM : SwitchSize {
-        override val width = 22.px
-        override val height = 12.px
+        override val width = 1.375.cssRem
+        override val height = 0.75.cssRem
     }
 
     object MD : SwitchSize {
-        override val width = 30.px
-        override val height = 16.px
+        override val width = 1.875.cssRem
+        override val height = 1.cssRem
     }
 
     object LG : SwitchSize {
-        override val width = 46.px
-        override val height = 24.px
+        override val width = 2.875.cssRem
+        override val height = 1.5.cssRem
     }
 }
 
-internal fun SwitchSize.toModifier() = Modifier
+fun SwitchSize.toModifier() = Modifier
     .setVariable(SwitchTrackWidthVar, width)
     .setVariable(SwitchTrackHeightVar, height)
     .setVariable(SwitchTrackPaddingVar, padding)
@@ -137,14 +135,14 @@ fun Switch(
     shape: SwitchShape = SwitchShape.PILL,
     ref: ElementRefScope<HTMLElement>? = null,
 ) {
-    val colorMode = getColorMode()
+    val colorMode = ColorMode.current
     val switchPalette = colorMode.toSilkPalette().switch
     Box(SwitchStyle.toModifier(variant).then(size.toModifier().then(shape.toModifier())), contentAlignment, ref = ref) {
         Box(
             modifier = SwitchTrackStyle.toModifier()
                 .setVariable(
                     SwitchTrackBackgroundColorVar,
-                    if (checked) colorScheme?.let { if (colorMode.isDark()) it._200 else it._700 }
+                    if (checked) colorScheme?.let { if (colorMode.isDark) it._200 else it._700 }
                         ?: switchPalette.backgroundOn else switchPalette.backgroundOff)
                 .thenIf(!enabled) { DisabledStyle.toModifier() }
                 .then(modifier)

@@ -1,7 +1,8 @@
 package com.varabyte.kobweb.silk.init
 
 import androidx.compose.runtime.*
-import com.varabyte.kobweb.compose.css.*
+import com.varabyte.kobweb.compose.ui.Modifier
+import com.varabyte.kobweb.compose.ui.modifiers.*
 import com.varabyte.kobweb.silk.SilkStyleSheet
 import com.varabyte.kobweb.silk.components.disclosure.TabBackgroundColorVar
 import com.varabyte.kobweb.silk.components.disclosure.TabBorderColorVar
@@ -22,10 +23,24 @@ import com.varabyte.kobweb.silk.components.forms.ButtonBackgroundHoverColorVar
 import com.varabyte.kobweb.silk.components.forms.ButtonBackgroundPressedColorVar
 import com.varabyte.kobweb.silk.components.forms.ButtonColorVar
 import com.varabyte.kobweb.silk.components.forms.ButtonStyle
+import com.varabyte.kobweb.silk.components.forms.FilledInputVariant
+import com.varabyte.kobweb.silk.components.forms.FlushedInputVariant
+import com.varabyte.kobweb.silk.components.forms.InputBorderColorVar
+import com.varabyte.kobweb.silk.components.forms.InputBorderFocusColorVar
+import com.varabyte.kobweb.silk.components.forms.InputBorderHoverColorVar
+import com.varabyte.kobweb.silk.components.forms.InputBorderInvalidColorVar
+import com.varabyte.kobweb.silk.components.forms.InputFilledColorVar
+import com.varabyte.kobweb.silk.components.forms.InputFilledFocusColorVar
+import com.varabyte.kobweb.silk.components.forms.InputFilledHoverColorVar
+import com.varabyte.kobweb.silk.components.forms.InputGroupStyle
+import com.varabyte.kobweb.silk.components.forms.InputPlaceholderColorVar
+import com.varabyte.kobweb.silk.components.forms.InputStyle
+import com.varabyte.kobweb.silk.components.forms.OutlinedInputVariant
 import com.varabyte.kobweb.silk.components.forms.SwitchStyle
 import com.varabyte.kobweb.silk.components.forms.SwitchThumbColorVar
 import com.varabyte.kobweb.silk.components.forms.SwitchThumbStyle
 import com.varabyte.kobweb.silk.components.forms.SwitchTrackStyle
+import com.varabyte.kobweb.silk.components.forms.UnstyledInputVariant
 import com.varabyte.kobweb.silk.components.graphics.CanvasStyle
 import com.varabyte.kobweb.silk.components.graphics.FitWidthImageVariant
 import com.varabyte.kobweb.silk.components.graphics.ImageStyle
@@ -71,6 +86,8 @@ import com.varabyte.kobweb.silk.components.overlay.TooltipTextContainerStyle
 import com.varabyte.kobweb.silk.components.overlay.TopLeftTooltipArrowVariant
 import com.varabyte.kobweb.silk.components.overlay.TopRightTooltipArrowVariant
 import com.varabyte.kobweb.silk.components.overlay.TopTooltipArrowVariant
+import com.varabyte.kobweb.silk.components.style.ComponentStyle
+import com.varabyte.kobweb.silk.components.style.base
 import com.varabyte.kobweb.silk.components.style.common.DisabledStyle
 import com.varabyte.kobweb.silk.components.style.common.SmoothColorStyle
 import com.varabyte.kobweb.silk.components.text.DivTextStyle
@@ -81,9 +98,13 @@ import com.varabyte.kobweb.silk.theme.SilkTheme
 import com.varabyte.kobweb.silk.theme._SilkTheme
 import com.varabyte.kobweb.silk.theme.colors.BackgroundColorVar
 import com.varabyte.kobweb.silk.theme.colors.BorderColorVar
+import com.varabyte.kobweb.silk.theme.colors.ColorMode
 import com.varabyte.kobweb.silk.theme.colors.ColorVar
-import com.varabyte.kobweb.silk.theme.colors.rememberColorMode
+import com.varabyte.kobweb.silk.theme.colors.PlaceholderColorVar
+import com.varabyte.kobweb.silk.theme.colors.suffixedWith
 import com.varabyte.kobweb.silk.theme.toSilkPalette
+import kotlinx.dom.addClass
+import kotlinx.dom.removeClass
 import org.w3c.dom.HTMLElement
 
 /**
@@ -99,6 +120,8 @@ class InitSilkContext(val config: MutableSilkConfig, val stylesheet: SilkStylesh
 
 fun initSilk(additionalInit: (InitSilkContext) -> Unit = {}) {
     val mutableTheme = MutableSilkTheme()
+
+    mutableTheme.registerComponentStyle(SilkColorsStyle)
 
     // TODO: Automate the creation of this list (with a Gradle task?)
     mutableTheme.registerComponentStyle(ButtonStyle)
@@ -126,6 +149,15 @@ fun initSilk(additionalInit: (InitSilkContext) -> Unit = {}) {
     mutableTheme.registerComponentStyle(TabsTabRowStyle)
     mutableTheme.registerComponentStyle(TabsTabStyle)
     mutableTheme.registerComponentStyle(TabsPanelStyle)
+
+    mutableTheme.registerComponentStyle(InputStyle)
+    mutableTheme.registerComponentVariants(
+        OutlinedInputVariant,
+        FilledInputVariant,
+        FlushedInputVariant,
+        UnstyledInputVariant
+    )
+    mutableTheme.registerComponentStyle(InputGroupStyle)
 
     mutableTheme.registerComponentStyle(TocStyle)
     mutableTheme.registerComponentVariants(TocBorderedVariant)
@@ -167,46 +199,64 @@ fun initSilk(additionalInit: (InitSilkContext) -> Unit = {}) {
     SilkTheme.registerStyles(SilkStyleSheet)
 }
 
-@Composable
-fun HTMLElement.setSilkVariables() {
-    val colorMode by rememberColorMode()
+private val SilkColorsStyle by ComponentStyle.base {
     val palette = colorMode.toSilkPalette()
-
+    Modifier
     // region General color vars
-    setVariable(BackgroundColorVar, palette.background)
-    setVariable(ColorVar, palette.color)
-    setVariable(BorderColorVar, palette.border)
+        .setVariable(BackgroundColorVar, palette.background)
+        .setVariable(ColorVar, palette.color)
+        .setVariable(BorderColorVar, palette.border)
+        .setVariable(PlaceholderColorVar, palette.placeholder)
     // endregion
 
     // region Widget color vars
-    setVariable(ButtonBackgroundDefaultColorVar, palette.button.default)
-    setVariable(ButtonBackgroundFocusColorVar, palette.button.focus)
-    setVariable(ButtonBackgroundHoverColorVar, palette.button.hover)
-    setVariable(ButtonBackgroundPressedColorVar, palette.button.pressed)
-    setVariable(ButtonColorVar, palette.color)
+        .setVariable(ButtonBackgroundDefaultColorVar, palette.button.default)
+        .setVariable(ButtonBackgroundFocusColorVar, palette.button.focus)
+        .setVariable(ButtonBackgroundHoverColorVar, palette.button.hover)
+        .setVariable(ButtonBackgroundPressedColorVar, palette.button.pressed)
+        .setVariable(ButtonColorVar, palette.color)
 
-    setVariable(DividerColorVar, palette.border)
+        .setVariable(DividerColorVar, palette.border)
 
-    setVariable(LinkDefaultColorVar, palette.link.default)
-    setVariable(LinkVisitedColorVar, palette.link.visited)
+        .setVariable(InputBorderColorVar, palette.border)
+        .setVariable(InputBorderFocusColorVar, palette.input.focusedBorder)
+        .setVariable(InputBorderHoverColorVar, palette.input.hoveredBorder)
+        .setVariable(InputBorderInvalidColorVar, palette.input.invalidBorder)
+        .setVariable(InputFilledColorVar, palette.input.filled)
+        .setVariable(InputFilledHoverColorVar, palette.input.filledHover)
+        .setVariable(InputFilledFocusColorVar, palette.input.filledFocus)
+        .setVariable(InputPlaceholderColorVar, palette.placeholder)
 
-    setVariable(OverlayBackgroundColorVar, palette.overlay)
+        .setVariable(LinkDefaultColorVar, palette.link.default)
+        .setVariable(LinkVisitedColorVar, palette.link.visited)
 
-    setVariable(SurfaceBackgroundColorVar, palette.background)
-    setVariable(SurfaceColorVar, palette.color)
+        .setVariable(OverlayBackgroundColorVar, palette.overlay)
 
-    setVariable(SwitchThumbColorVar, palette.switch.thumb)
+        .setVariable(SurfaceBackgroundColorVar, palette.background)
+        .setVariable(SurfaceColorVar, palette.color)
 
-    setVariable(TabColorVar, palette.tab.color)
-    setVariable(TabBackgroundColorVar, palette.tab.background)
-    setVariable(TabBorderColorVar, palette.tab.border)
-    setVariable(TabDisabledBackgroundColorVar, palette.tab.disabled)
-    setVariable(TabHoverBackgroundColorVar, palette.tab.hover)
-    setVariable(TabPressedBackgroundColorVar, palette.tab.pressed)
+        .setVariable(SwitchThumbColorVar, palette.switch.thumb)
 
-    setVariable(TocBorderColorVar, palette.border)
+        .setVariable(TabColorVar, palette.tab.color)
+        .setVariable(TabBackgroundColorVar, palette.tab.background)
+        .setVariable(TabBorderColorVar, palette.border)
+        .setVariable(TabDisabledBackgroundColorVar, palette.tab.disabled)
+        .setVariable(TabHoverBackgroundColorVar, palette.tab.hover)
+        .setVariable(TabPressedBackgroundColorVar, palette.tab.pressed)
 
-    setVariable(TooltipBackgroundColorVar, palette.tooltip.background)
-    setVariable(TooltipColorVar, palette.tooltip.color)
+        .setVariable(TocBorderColorVar, palette.border)
+
+        .setVariable(TooltipBackgroundColorVar, palette.tooltip.background)
+        .setVariable(TooltipColorVar, palette.tooltip.color)
     // endregion
+}
+
+@Composable
+fun HTMLElement.setSilkVariables() {
+    setSilkVariables(ColorMode.current)
+}
+
+fun HTMLElement.setSilkVariables(colorMode: ColorMode) {
+    removeClass(SilkColorsStyle.name.suffixedWith(colorMode.opposite))
+    addClass(SilkColorsStyle.name.suffixedWith(colorMode))
 }

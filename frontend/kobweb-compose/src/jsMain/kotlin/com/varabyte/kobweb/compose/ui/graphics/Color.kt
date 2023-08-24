@@ -213,25 +213,29 @@ sealed interface Color : CSSColorValue {
     companion object {
         const val DEFAULT_SHIFTING_PERCENT = 0.3f
 
-        fun rgb(value: Int) = Rgb(0xFF.shl(24).or(value))
-        fun argb(value: Int) = Rgb(value)
-        fun argb(value: Long) = run {
-            // We accept Long here because Kotlin treats 0xFF000000 and such values as a Long, even though that can
+        private fun Long.toInRangeInt(): Int {
+            // We accept Long for colors because Kotlin treats 0xFF______ values as a Long, even though that can
             // still fit into 4 bytes and be represented by an Int. Therefore, let's accept Longs but fail at runtime if
             // the user passes in something with a higher bit set.
-            check(0xFFFFFFFF.inv().and(value) == 0L) {
+            check(0xFFFFFFFF.inv().and(this) == 0L) {
                 "Got an invalid hex color (0x${
-                    value.toString(16).uppercase()
+                    this.toString(16).uppercase()
                 }) value larger than 0xFFFFFFFF"
             }
-            argb(value.toInt())
+            return this.toInt()
         }
 
-        @Deprecated(
-            "`rgba` was incorrectly named. Please use `argb` instead, since the first 8 bits of the hex value are for alpha. In a future version, `rgba` may be reintroduced with the correct implementation.",
-            ReplaceWith("Color.argb(value)")
-        )
-        fun rgba(value: Int) = argb(value)
+        fun rgb(value: Int) = Rgb(0xFF.shl(24).or(value))
+        fun argb(value: Int) = Rgb(value)
+        fun argb(value: Long) = argb(value.toInRangeInt())
+
+        fun rgba(value: Int) = run {
+            // Convert RRGGBBAA to AARRGGBB
+            val alpha = value.and(0xFF).shl(24)
+            val rgb = value.shr(8)
+            argb(alpha.or(rgb))
+        }
+        fun rgba(value: Long) = rgba(value.toInRangeInt())
 
         fun rgb(r: Int, g: Int, b: Int) = rgba(r, g, b, 0xFF)
         fun rgba(r: Int, g: Int, b: Int, a: Int) = Rgb(
@@ -288,6 +292,21 @@ sealed interface Color : CSSColorValue {
  *   color rgb values by some percent amount (so the final result depends upon the initial values).
  */
 fun Color.lightened(byPercent: Float = Color.DEFAULT_SHIFTING_PERCENT) = inverted().darkened(byPercent).inverted()
+
+/**
+ * Calculate a color's luminance, which is a calculation for how bright it is perceived to be by the human eye.
+ */
+val Color.luminance: Float
+    // See also: https://www.w3.org/TR/AERT/#color-contrast
+    get() = this.toRgb()
+        .let { rgb -> (rgb.redf * 0.299f) + (rgb.greenf * 0.587f) + (rgb.bluef * 0.114f) }
+
+/**
+ * Check if a color is perceived bright or not.
+ *
+ * This can be useful if deciding to overlay dark or light text on top of it, for example.
+ */
+val Color.isBright: Boolean get() = this.luminance > 0.5f
 
 object Colors {
     val Transparent get() = Color.rgba(0, 0, 0, 0)
